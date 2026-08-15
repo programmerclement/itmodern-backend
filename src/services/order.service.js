@@ -1,0 +1,298 @@
+import Order, { ORDER_STATUSES } from '../models/Order.js';
+import Product from '../models/Product.js';
+import { getActiveCartForCheckout, clearActiveItems } from './cart.service.js';
+import { getOwnedAddressOrThrow } from './address.service.js';
+import { sendOrderConfirmationEmail } from './email.service.js';
+import { validateCoupon, incrementUsage } from './coupon.service.js';
+import { ApiError } from '../utils/ApiError.js';
+import { generateSequentialNumber } from '../utils/sequentialNumber.js';
+import { toCsv } from '../utils/csv.js';
+import { DELIVERY_FEE_RWF, FREE_DELIVERY_THRESHOLD_RWF } from '../constants/order.js';
+
+const CANCELLABLE_STATUSES = ['PENDING', 'CONFIRMED'];
+
+function generateOrderNumber() {
+  return generateSequentialNumber(Order, 'orderNumber', 'ITM');
+}
+
+export async function reserveStock(items) {
+  const reserved = [];
+  try {
+    for (const item of items) {
+      const updated = await Product.findOneAndUpdate(
+        { _id: item.product._id, stockQuantity: { $gte: item.quantity } },
+        { $inc: { stockQuantity: -item.quantity, salesCount: item.quantity } },
+        { new: true }
+      );
+      if (!updated) {
+        throw new ApiError(
+          409,
+          `"${item.product.name}" no longer has enough stock (requested ${item.quantity})`
+        );
+      }
+      reserved.push({ productId: item.product._id, quantity: item.quantity });
+    }
+    return reserved;
+  } catch (error) {
+    for (const item of reserved) {
+      await Product.updateOne(
+        { _id: item.productId },
+        { $inc: { stockQuantity: item.quantity, salesCount: -item.quantity } }
+      );
+    }
+    throw error;
+  }
+}
+
+export async function createOrderFromCart(user, payload) {
+  const { deliveryMethod, addressId, paymentMethod, notes = '', customerName, customerPhone } = payload;
+
+  const cartItems = await getActiveCartForCheckout(user._id);
+  if (!cartItems.length) {
+    throw new ApiError(400, 'Your cart is empty');
+  }
+
+  for (const item of cartItems) {
+    if (item.product.status !== 'published') {
+      throw new ApiError(409, `"${item.product.name}" is no longer available`);
+    }
+  }
+
+  let addressSnapshot = null;
+  if (deliveryMethod === 'DELIVERY') {
+    if (!addressId) throw new ApiError(400, 'A delivery address is required');
+    const address = await getOwnedAddressOrThrow(user._id, addressId);
+    addressSnapshot = {
+      recipientName: address.recipientName,
+      phone: address.phone,
+      province: address.province,
+      district: address.district,
+      street: address.street,
+      notes: address.notes,
+    };
+  }
+
+  const orderItems = cartItems.map((item) => ({
+    product: item.product._id,
+    name: item.product.name,
+    sku: item.product.sku,
+    image: item.product.images?.[0]?.url ?? null,
+    price: item.product.price,
+    quantity: item.quantity,
+    subtotal: item.product.price * item.quantity,
+  }));
+
+  const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const deliveryFee =
+    deliveryMethod === 'DELIVERY' && subtotal < FREE_DELIVERY_THRESHOLD_RWF ? DELIVERY_FEE_RWF : 0;
+
+  let coupon = null;
+  let discountAmount = 0;
+  if (payload.couponCode) {
+    // Re-validated server-side regardless of what the client previously saw.
+    ({ coupon, discountAmount } = await validateCoupon(payload.couponCode, subtotal));
+  }
+
+  const total = subtotal + deliveryFee - discountAmount;
+
+  await reserveStock(cartItems);
+
+  let order;
+  try {
+    const orderNumber = await generateOrderNumber();
+    order = await Order.create({
+      orderNumber,
+      user: user._id,
+      items: orderItems,
+      deliveryMethod,
+      address: addressSnapshot,
+      customerName,
+      customerEmail: user.email,
+      customerPhone,
+      notes,
+      subtotal,
+      deliveryFee,
+      couponCode: coupon?.code ?? null,
+      discountAmount,
+      total,
+      paymentMethod,
+      paymentStatus: 'PENDING',
+      status: 'PENDING',
+      statusHistory: [{ status: 'PENDING', note: 'Order placed' }],
+    });
+  } catch (error) {
+    // Order creation failed after stock was reserved — release it back.
+    for (const item of orderItems) {
+      await Product.updateOne(
+        { _id: item.product },
+        { $inc: { stockQuantity: item.quantity, salesCount: -item.quantity } }
+      );
+    }
+    throw error;
+  }
+
+  if (coupon) {
+    incrementUsage(coupon._id).catch(() => {});
+  }
+
+  await clearActiveItems(user._id);
+
+  sendOrderConfirmationEmail(user, order).catch(() => {});
+
+  return order;
+}
+
+export async function listMyOrders(userId, { page = 1, limit = 10 } = {}) {
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(50, Math.max(1, Number(limit) || 10));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Order.find({ user: userId }).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+    Order.countDocuments({ user: userId }),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
+}
+
+export async function adminListOrders({ status, paymentStatus, user, search, page = 1, limit = 20 } = {}) {
+  const filter = {};
+  if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+  if (user) filter.user = user;
+  if (search) {
+    filter.$or = [
+      { orderNumber: { $regex: search, $options: 'i' } },
+      { customerName: { $regex: search, $options: 'i' } },
+      { customerEmail: { $regex: search, $options: 'i' } },
+      { customerPhone: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Order.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate('user', 'firstName lastName email'),
+    Order.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
+}
+
+export async function getOrderByNumber(orderNumber, requester) {
+  const order = await Order.findOne({ orderNumber: orderNumber.toUpperCase() });
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  if (requester.role !== 'admin' && order.user.toString() !== requester._id.toString()) {
+    throw new ApiError(403, 'You do not have access to this order');
+  }
+
+  return order;
+}
+
+export async function cancelOrder(orderNumber, user) {
+  const order = await getOrderByNumber(orderNumber, user);
+
+  if (!CANCELLABLE_STATUSES.includes(order.status)) {
+    throw new ApiError(400, `Order cannot be cancelled once it is ${order.status.toLowerCase()}`);
+  }
+
+  for (const item of order.items) {
+    await Product.updateOne(
+      { _id: item.product },
+      { $inc: { stockQuantity: item.quantity, salesCount: -item.quantity } }
+    );
+  }
+
+  order.status = 'CANCELLED';
+  order.statusHistory.push({ status: 'CANCELLED', note: 'Cancelled by customer' });
+  await order.save();
+
+  return order;
+}
+
+export async function adminUpdateStatus(orderNumber, status, note = '') {
+  if (!ORDER_STATUSES.includes(status)) {
+    throw new ApiError(400, 'Invalid order status');
+  }
+
+  const order = await Order.findOne({ orderNumber: orderNumber.toUpperCase() });
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
+    for (const item of order.items) {
+      await Product.updateOne(
+        { _id: item.product },
+        { $inc: { stockQuantity: item.quantity, salesCount: -item.quantity } }
+      );
+    }
+  }
+
+  order.status = status;
+  order.statusHistory.push({ status, note });
+  await order.save();
+
+  return order;
+}
+
+const EXPORT_COLUMNS = [
+  { key: 'orderNumber', label: 'Order Number' },
+  { key: 'date', label: 'Date' },
+  { key: 'customerName', label: 'Customer' },
+  { key: 'customerEmail', label: 'Email' },
+  { key: 'customerPhone', label: 'Phone' },
+  { key: 'itemCount', label: 'Items' },
+  { key: 'subtotal', label: 'Subtotal' },
+  { key: 'deliveryFee', label: 'Delivery Fee' },
+  { key: 'discountAmount', label: 'Discount' },
+  { key: 'total', label: 'Total' },
+  { key: 'paymentMethod', label: 'Payment Method' },
+  { key: 'paymentStatus', label: 'Payment Status' },
+  { key: 'status', label: 'Order Status' },
+];
+
+export async function exportOrdersCsv({ startDate, endDate, status } = {}) {
+  const filter = {};
+  if (status) filter.status = status;
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) filter.createdAt.$lte = new Date(endDate);
+  }
+
+  const orders = await Order.find(filter).sort({ createdAt: -1 });
+
+  const rows = orders.map((order) => ({
+    orderNumber: order.orderNumber,
+    date: order.createdAt.toISOString().slice(0, 10),
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    customerPhone: order.customerPhone,
+    itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee,
+    discountAmount: order.discountAmount,
+    total: order.total,
+    paymentMethod: order.paymentMethod,
+    paymentStatus: order.paymentStatus,
+    status: order.status,
+  }));
+
+  return toCsv(rows, EXPORT_COLUMNS);
+}

@@ -1,0 +1,48 @@
+import { Router } from 'express';
+import healthRoutes from './health.routes.js';
+import authRoutes from './auth.routes.js';
+import categoryRoutes from './category.routes.js';
+import brandRoutes from './brand.routes.js';
+import productRoutes from './product.routes.js';
+import wishlistRoutes from './wishlist.routes.js';
+import uploadRoutes from './upload.routes.js';
+import addressRoutes from './address.routes.js';
+import cartRoutes from './cart.routes.js';
+import orderRoutes from './order.routes.js';
+import paymentRoutes from './payment.routes.js';
+import userRoutes from './user.routes.js';
+import inventoryRoutes from './inventory.routes.js';
+import dashboardRoutes from './dashboard.routes.js';
+import productImportRoutes from './productImport.routes.js';
+import serialNumberRoutes from './serialNumber.routes.js';
+import reviewRoutes from './review.routes.js';
+import quotationRoutes from './quotation.routes.js';
+import couponRoutes from './coupon.routes.js';
+import heroSlideRoutes from './heroSlide.routes.js';
+import siteSettingsRoutes from './siteSettings.routes.js';
+
+const router = Router();
+
+router.use('/health', healthRoutes);
+router.use('/auth', authRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/brands', brandRoutes);
+router.use('/products', productRoutes);
+router.use('/wishlist', wishlistRoutes);
+router.use('/uploads', uploadRoutes);
+router.use('/addresses', addressRoutes);
+router.use('/cart', cartRoutes);
+router.use('/orders', orderRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/users', userRoutes);
+router.use('/inventory', inventoryRoutes);
+router.use('/admin/dashboard', dashboardRoutes);
+router.use('/products/import', productImportRoutes);
+router.use('/serial-numbers', serialNumberRoutes);
+router.use('/reviews', reviewRoutes);
+router.use('/quotations', quotationRoutes);
+router.use('/coupons', couponRoutes);
+router.use('/hero-slides', heroSlideRoutes);
+router.use('/settings', siteSettingsRoutes);
+
+export default router;

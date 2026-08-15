@@ -1,0 +1,2 @@
+export const DELIVERY_FEE_RWF = 3000;
+export const FREE_DELIVERY_THRESHOLD_RWF = 300000;

@@ -13,6 +13,13 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
+// Render (and most PaaS hosts) sit behind a reverse proxy — trust its
+// X-Forwarded-For header so express-rate-limit and req.ip see the real
+// client IP instead of the proxy's.
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
 app.use(helmet());
 app.use(
   cors({

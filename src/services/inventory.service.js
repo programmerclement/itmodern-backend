@@ -45,7 +45,7 @@ export async function getHistory(productId, { page = 1, limit = 20 } = {}) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('performedBy', 'firstName lastName'),
+      .populate('performedBy', 'name'),
     InventoryLog.countDocuments({ product: productId }),
   ]);
 
@@ -55,18 +55,61 @@ export async function getHistory(productId, { page = 1, limit = 20 } = {}) {
   };
 }
 
-export async function getLowStock() {
-  return Product.find({
-    status: 'published',
-    stockQuantity: { $gt: 0 },
-    $expr: { $lte: ['$stockQuantity', '$lowStockThreshold'] },
-  })
-    .select('name slug sku stockQuantity lowStockThreshold images')
-    .sort({ stockQuantity: 1 });
+function withSearch(filter, search) {
+  if (!search) return filter;
+  return {
+    ...filter,
+    $or: [{ name: { $regex: search, $options: 'i' } }, { sku: { $regex: search, $options: 'i' } }],
+  };
 }
 
-export async function getOutOfStock() {
-  return Product.find({ status: 'published', stockQuantity: 0 })
-    .select('name slug sku stockQuantity images')
-    .sort({ updatedAt: -1 });
+export async function getLowStock({ search, page = 1, limit = 20 } = {}) {
+  const filter = withSearch(
+    {
+      status: 'published',
+      stockQuantity: { $gt: 0 },
+      $expr: { $lte: ['$stockQuantity', '$lowStockThreshold'] },
+    },
+    search
+  );
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Product.find(filter)
+      .select('name slug sku stockQuantity lowStockThreshold images')
+      .sort({ stockQuantity: 1 })
+      .skip(skip)
+      .limit(limitNum),
+    Product.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
+}
+
+export async function getOutOfStock({ search, page = 1, limit = 20 } = {}) {
+  const filter = withSearch({ status: 'published', stockQuantity: 0 }, search);
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Product.find(filter)
+      .select('name slug sku stockQuantity images')
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limitNum),
+    Product.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
 }

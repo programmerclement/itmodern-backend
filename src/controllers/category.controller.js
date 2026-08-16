@@ -7,8 +7,8 @@ export const list = asyncHandler(async (req, res) => {
 });
 
 export const listAll = asyncHandler(async (req, res) => {
-  const categories = await categoryService.listCategories({ activeOnly: false });
-  res.json({ success: true, message: 'All categories', data: { categories } });
+  const { items, pagination } = await categoryService.adminListCategories(req.query);
+  res.json({ success: true, message: 'All categories', data: { categories: items, pagination } });
 });
 
 export const getBySlug = asyncHandler(async (req, res) => {

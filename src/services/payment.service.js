@@ -289,7 +289,7 @@ export async function adminListPayments({ status, network, search, page = 1, lim
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('user', 'firstName lastName email')
+      .populate('user', 'name email')
       .populate('order', 'orderNumber total'),
     Payment.countDocuments(filter),
   ]);

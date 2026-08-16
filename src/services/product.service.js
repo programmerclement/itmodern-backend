@@ -90,12 +90,27 @@ export async function listProducts(query = {}) {
 }
 
 export async function adminListProducts(query = {}) {
-  const { category, brand, condition, status, search, sort = 'newest', page = 1, limit = 20 } = query;
+  const { category, brand, condition, status, search, sort = 'newest', page = 1, limit = 20, featured, stockStatus } = query;
 
   const filter = {};
 
   if (status) {
     filter.status = status;
+  }
+
+  if (featured === 'true') {
+    filter.featured = true;
+  } else if (featured === 'false') {
+    filter.featured = false;
+  }
+
+  if (stockStatus === 'out_of_stock') {
+    filter.stockQuantity = 0;
+  } else if (stockStatus === 'low_stock') {
+    filter.stockQuantity = { $gt: 0 };
+    filter.$expr = { $lte: ['$stockQuantity', '$lowStockThreshold'] };
+  } else if (stockStatus === 'in_stock') {
+    filter.$expr = { $gt: ['$stockQuantity', '$lowStockThreshold'] };
   }
 
   if (category) {
@@ -142,6 +157,21 @@ export async function adminListProducts(query = {}) {
     items,
     pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
   };
+}
+
+export async function getProductStats() {
+  const [total, published, featured, lowStock, outOfStock] = await Promise.all([
+    Product.countDocuments({}),
+    Product.countDocuments({ status: 'published' }),
+    Product.countDocuments({ featured: true }),
+    Product.countDocuments({
+      stockQuantity: { $gt: 0 },
+      $expr: { $lte: ['$stockQuantity', '$lowStockThreshold'] },
+    }),
+    Product.countDocuments({ stockQuantity: 0 }),
+  ]);
+
+  return { total, published, featured, lowStock, outOfStock };
 }
 
 export async function getProductBySlug(slug, { includeUnpublished = false } = {}) {

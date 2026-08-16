@@ -180,9 +180,18 @@ export async function listMine(userId, { page = 1, limit = 10 } = {}) {
   return { items, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } };
 }
 
-export async function adminListAll({ status, page = 1, limit = 20 } = {}) {
+export async function adminListAll({ status, search, page = 1, limit = 20 } = {}) {
   const filter = {};
   if (status) filter.status = status;
+  if (search) {
+    filter.$or = [
+      { quotationNumber: { $regex: search, $options: 'i' } },
+      { companyName: { $regex: search, $options: 'i' } },
+      { contactPerson: { $regex: search, $options: 'i' } },
+      { contactEmail: { $regex: search, $options: 'i' } },
+      { contactPhone: { $regex: search, $options: 'i' } },
+    ];
+  }
 
   const pageNum = Math.max(1, Number(page) || 1);
   const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
@@ -193,7 +202,7 @@ export async function adminListAll({ status, page = 1, limit = 20 } = {}) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('customer', 'firstName lastName email'),
+      .populate('customer', 'name email'),
     Quotation.countDocuments(filter),
   ]);
 

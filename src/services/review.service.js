@@ -1,6 +1,7 @@
 import Review from '../models/Review.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
+import User from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 
 async function findEligibleOrder(userId, productId) {
@@ -70,7 +71,7 @@ export async function listForProduct(productId, { page = 1, limit = 10 } = {}) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('user', 'firstName lastName'),
+      .populate('user', 'name'),
     Review.countDocuments(filter),
   ]);
 
@@ -80,9 +81,24 @@ export async function listForProduct(productId, { page = 1, limit = 10 } = {}) {
   };
 }
 
-export async function adminListReviews({ status, page = 1, limit = 20 } = {}) {
+export async function adminListReviews({ status, search, page = 1, limit = 20 } = {}) {
   const filter = {};
   if (status) filter.status = status;
+
+  if (search) {
+    const regex = { $regex: search, $options: 'i' };
+    const [matchingProducts, matchingUsers] = await Promise.all([
+      Product.find({ name: regex }).select('_id'),
+      User.find({ $or: [{ name: regex }, { email: regex }] }).select('_id'),
+    ]);
+
+    filter.$or = [
+      { title: regex },
+      { comment: regex },
+      { product: { $in: matchingProducts.map((p) => p._id) } },
+      { user: { $in: matchingUsers.map((u) => u._id) } },
+    ];
+  }
 
   const pageNum = Math.max(1, Number(page) || 1);
   const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
@@ -93,7 +109,7 @@ export async function adminListReviews({ status, page = 1, limit = 20 } = {}) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('user', 'firstName lastName email')
+      .populate('user', 'name email')
       .populate('product', 'name slug'),
     Review.countDocuments(filter),
   ]);

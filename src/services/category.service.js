@@ -8,6 +8,30 @@ export async function listCategories({ activeOnly = true } = {}) {
   return Category.find(query).sort({ sortOrder: 1, name: 1 });
 }
 
+export async function adminListCategories({ search, page = 1, limit = 20 } = {}) {
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Category.find(filter).sort({ sortOrder: 1, name: 1 }).skip(skip).limit(limitNum),
+    Category.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
+}
+
 export async function getCategoryBySlug(slug) {
   const category = await Category.findOne({ slug });
   if (!category) {

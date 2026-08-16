@@ -5,28 +5,29 @@ const { Schema } = mongoose;
 
 const userSchema = new Schema(
   {
-    firstName: {
+    name: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 60,
+      maxlength: 120,
     },
-    lastName: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 60,
-    },
+    // No default here deliberately (same reasoning as googleId below): leaving
+    // this field entirely absent for accounts created without an email is
+    // what lets the sparse unique index allow more than one emailless account.
     email: {
       type: String,
-      required: true,
       lowercase: true,
       trim: true,
     },
+    // Required for local signups (the primary identifier); Google-provisioned
+    // accounts don't get a phone number from Google's ID token, so they're
+    // exempt. No default, for the same sparse-index reason as email/googleId.
     phone: {
       type: String,
       trim: true,
-      default: null,
+      required: function isPhoneRequired() {
+        return this.authProvider === 'local';
+      },
     },
     passwordHash: {
       type: String,
@@ -69,20 +70,21 @@ const userSchema = new Schema(
     emailVerificationTokenHash: { type: String, select: false, default: null },
     emailVerificationExpires: { type: Date, select: false, default: null },
 
-    passwordResetTokenHash: { type: String, select: false, default: null },
-    passwordResetExpires: { type: Date, select: false, default: null },
+    // Shared one-time-code fields, reused for both OTP login and OTP-based
+    // password reset. `otpPurpose` disambiguates the two so a code issued
+    // for one can't be replayed against the other.
+    otpCodeHash: { type: String, select: false, default: null },
+    otpExpires: { type: Date, select: false, default: null },
+    otpPurpose: { type: String, select: false, default: null },
 
     lastLoginAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
-userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
+userSchema.index({ phone: 1 }, { unique: true, sparse: true });
 userSchema.index({ googleId: 1 }, { unique: true, sparse: true });
-
-userSchema.virtual('name').get(function computeName() {
-  return `${this.firstName} ${this.lastName}`.trim();
-});
 
 userSchema.methods.setPassword = async function setPassword(plainPassword) {
   this.passwordHash = await bcrypt.hash(plainPassword, 12);
@@ -96,8 +98,6 @@ userSchema.methods.comparePassword = function comparePassword(plainPassword) {
 userSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id,
-    firstName: this.firstName,
-    lastName: this.lastName,
     name: this.name,
     email: this.email,
     phone: this.phone,

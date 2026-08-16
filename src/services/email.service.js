@@ -1,7 +1,7 @@
 import { getResendClient } from '../integrations/email/resendClient.js';
 import {
   verificationEmail,
-  passwordResetEmail,
+  otpEmail,
   welcomeEmail,
   orderConfirmationEmail,
   paymentReceivedEmail,
@@ -33,36 +33,35 @@ async function send({ to, subject, html }) {
 
 export function sendVerificationEmail(user, rawToken) {
   const verifyUrl = `${env.frontendUrl}/verify-email/${rawToken}`;
-  const { subject, html } = verificationEmail({ firstName: user.firstName, verifyUrl });
+  const { subject, html } = verificationEmail({ name: user.name, verifyUrl });
   return send({ to: user.email, subject, html });
 }
 
-export function sendPasswordResetEmail(user, rawToken) {
-  const resetUrl = `${env.frontendUrl}/reset-password/${rawToken}`;
-  const { subject, html } = passwordResetEmail({ firstName: user.firstName, resetUrl });
+export function sendOtpEmail(user, code) {
+  const { subject, html } = otpEmail({ name: user.name, code });
   return send({ to: user.email, subject, html });
 }
 
 export function sendWelcomeEmail(user) {
   const shopUrl = `${env.frontendUrl}/shop`;
-  const { subject, html } = welcomeEmail({ firstName: user.firstName, shopUrl });
+  const { subject, html } = welcomeEmail({ name: user.name, shopUrl });
   return send({ to: user.email, subject, html });
 }
 
 export function sendOrderConfirmationEmail(user, order) {
   const orderUrl = `${env.frontendUrl}/account/orders/${order.orderNumber}`;
-  const { subject, html } = orderConfirmationEmail({ firstName: user.firstName, order, orderUrl });
+  const { subject, html } = orderConfirmationEmail({ name: user.name, order, orderUrl });
   return send({ to: user.email, subject, html });
 }
 
 export function sendPaymentReceivedEmail(user, order, payment) {
   const orderUrl = `${env.frontendUrl}/account/orders/${order.orderNumber}`;
-  const { subject, html } = paymentReceivedEmail({ firstName: user.firstName, order, payment, orderUrl });
+  const { subject, html } = paymentReceivedEmail({ name: user.name, order, payment, orderUrl });
   return send({ to: user.email, subject, html });
 }
 
 export function sendQuotationReadyEmail(user, quotation) {
   const quotationUrl = `${env.frontendUrl}/account/quotations/${quotation.quotationNumber}`;
-  const { subject, html } = quotationReadyEmail({ firstName: user.firstName, quotation, quotationUrl });
+  const { subject, html } = quotationReadyEmail({ name: user.name, quotation, quotationUrl });
   return send({ to: user.email, subject, html });
 }

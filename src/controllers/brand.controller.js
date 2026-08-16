@@ -7,8 +7,8 @@ export const list = asyncHandler(async (req, res) => {
 });
 
 export const listAll = asyncHandler(async (req, res) => {
-  const brands = await brandService.listBrands({ activeOnly: false });
-  res.json({ success: true, message: 'All brands', data: { brands } });
+  const { items, pagination } = await brandService.adminListBrands(req.query);
+  res.json({ success: true, message: 'All brands', data: { brands: items, pagination } });
 });
 
 export const getBySlug = asyncHandler(async (req, res) => {

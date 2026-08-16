@@ -6,8 +6,9 @@ import { validate } from '../middleware/validate.js';
 import {
   registerValidator,
   loginValidator,
-  forgotPasswordValidator,
-  resetPasswordValidator,
+  requestOtpValidator,
+  verifyOtpLoginValidator,
+  resetPasswordOtpValidator,
   googleAuthValidator,
   changePasswordValidator,
   updateProfileValidator,
@@ -22,20 +23,16 @@ router.post('/logout', authController.logout);
 router.get('/me', protect, authController.me);
 router.patch('/me', protect, updateProfileValidator, validate, authController.updateProfile);
 
+router.post('/otp/request', authLimiter, requestOtpValidator, validate, authController.requestOtp);
+router.post('/otp/login', authLimiter, verifyOtpLoginValidator, validate, authController.verifyOtpLogin);
 router.post(
-  '/forgot-password',
+  '/otp/reset-password',
   authLimiter,
-  forgotPasswordValidator,
+  resetPasswordOtpValidator,
   validate,
-  authController.forgotPassword
+  authController.resetPasswordWithOtp
 );
-router.post(
-  '/reset-password',
-  authLimiter,
-  resetPasswordValidator,
-  validate,
-  authController.resetPassword
-);
+
 router.post('/verify-email', authController.verifyEmail);
 router.post('/resend-verification', protect, authLimiter, authController.resendVerification);
 

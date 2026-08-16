@@ -16,6 +16,11 @@ export const adminList = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Products', data: { products: items, pagination } });
 });
 
+export const stats = asyncHandler(async (req, res) => {
+  const data = await productService.getProductStats();
+  res.json({ success: true, message: 'Product stats', data });
+});
+
 export const getById = asyncHandler(async (req, res) => {
   const product = await productService.getProductById(req.params.id);
   res.json({ success: true, message: 'Product', data: { product } });

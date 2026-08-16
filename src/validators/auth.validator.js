@@ -5,24 +5,30 @@ const passwordRule = body('password')
   .withMessage('Password must be at least 8 characters long');
 
 export const registerValidator = [
-  body('firstName').trim().notEmpty().withMessage('First name is required'),
-  body('lastName').trim().notEmpty().withMessage('Last name is required'),
-  body('email').trim().isEmail().withMessage('A valid email is required').normalizeEmail(),
-  body('phone').optional({ values: 'falsy' }).trim().isMobilePhone('any').withMessage('Invalid phone number'),
+  body('name').trim().notEmpty().withMessage('Full name is required'),
+  body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Enter a valid email address').normalizeEmail(),
+  body('phone').trim().notEmpty().isMobilePhone('any').withMessage('A valid phone number is required'),
   passwordRule,
 ];
 
 export const loginValidator = [
-  body('email').trim().isEmail().withMessage('A valid email is required').normalizeEmail(),
+  body('identifier').trim().notEmpty().withMessage('Email or phone number is required'),
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
-export const forgotPasswordValidator = [
-  body('email').trim().isEmail().withMessage('A valid email is required').normalizeEmail(),
+export const requestOtpValidator = [
+  body('identifier').trim().notEmpty().withMessage('Email or phone number is required'),
+  body('purpose').isIn(['login', 'reset']).withMessage('Invalid purpose'),
 ];
 
-export const resetPasswordValidator = [
-  body('token').notEmpty().withMessage('Reset token is required'),
+export const verifyOtpLoginValidator = [
+  body('identifier').trim().notEmpty().withMessage('Email or phone number is required'),
+  body('code').trim().isLength({ min: 6, max: 6 }).withMessage('Enter the 6-digit code'),
+];
+
+export const resetPasswordOtpValidator = [
+  body('identifier').trim().notEmpty().withMessage('Email or phone number is required'),
+  body('code').trim().isLength({ min: 6, max: 6 }).withMessage('Enter the 6-digit code'),
   passwordRule,
 ];
 
@@ -31,8 +37,7 @@ export const googleAuthValidator = [
 ];
 
 export const updateProfileValidator = [
-  body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty'),
-  body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty'),
+  body('name').optional().trim().notEmpty().withMessage('Full name cannot be empty'),
   body('phone').optional({ values: 'falsy' }).trim().isMobilePhone('any').withMessage('Invalid phone number'),
 ];
 

@@ -181,7 +181,7 @@ export async function adminListOrders({ status, paymentStatus, user, search, pag
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('user', 'firstName lastName email'),
+      .populate('user', 'name email'),
     Order.countDocuments(filter),
   ]);
 

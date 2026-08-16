@@ -40,6 +40,27 @@ export async function listCoupons() {
   return Coupon.find().sort({ createdAt: -1 });
 }
 
+export async function adminListCoupons({ search, page = 1, limit = 20 } = {}) {
+  const filter = {};
+  if (search) {
+    filter.code = { $regex: search, $options: 'i' };
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Coupon.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+    Coupon.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
+}
+
 export async function createCoupon(data) {
   return Coupon.create(data);
 }

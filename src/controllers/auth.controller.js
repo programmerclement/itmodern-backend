@@ -14,7 +14,7 @@ function respondWithSession(res, statusCode, user, message) {
 
 export const register = asyncHandler(async (req, res) => {
   const user = await authService.register(req.body);
-  respondWithSession(res, 201, user, 'Account created. Please check your email to verify your address.');
+  respondWithSession(res, 201, user, 'Account created successfully');
 });
 
 export const login = asyncHandler(async (req, res) => {
@@ -41,16 +41,21 @@ export const updateProfile = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Profile updated', data: { user: user.toSafeJSON() } });
 });
 
-export const forgotPassword = asyncHandler(async (req, res) => {
-  await authService.forgotPassword(req.body);
+export const requestOtp = asyncHandler(async (req, res) => {
+  await authService.requestOtp(req.body);
   res.json({
     success: true,
-    message: 'If an account exists for that email, a reset link has been sent.',
+    message: 'If an account exists for that identifier, a code has been sent.',
   });
 });
 
-export const resetPassword = asyncHandler(async (req, res) => {
-  await authService.resetPassword(req.body);
+export const verifyOtpLogin = asyncHandler(async (req, res) => {
+  const user = await authService.verifyOtpLogin(req.body);
+  respondWithSession(res, 200, user, 'Logged in successfully');
+});
+
+export const resetPasswordWithOtp = asyncHandler(async (req, res) => {
+  await authService.resetPasswordWithOtp(req.body);
   res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
 });
 

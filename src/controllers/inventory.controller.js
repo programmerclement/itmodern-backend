@@ -12,11 +12,11 @@ export const history = asyncHandler(async (req, res) => {
 });
 
 export const lowStock = asyncHandler(async (req, res) => {
-  const products = await inventoryService.getLowStock();
-  res.json({ success: true, message: 'Low stock products', data: { products } });
+  const { items, pagination } = await inventoryService.getLowStock(req.query);
+  res.json({ success: true, message: 'Low stock products', data: { products: items, pagination } });
 });
 
 export const outOfStock = asyncHandler(async (req, res) => {
-  const products = await inventoryService.getOutOfStock();
-  res.json({ success: true, message: 'Out of stock products', data: { products } });
+  const { items, pagination } = await inventoryService.getOutOfStock(req.query);
+  res.json({ success: true, message: 'Out of stock products', data: { products: items, pagination } });
 });

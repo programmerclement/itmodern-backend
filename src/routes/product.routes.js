@@ -7,6 +7,7 @@ import { createProductValidator, updateProductValidator } from '../validators/pr
 const router = Router();
 
 router.get('/admin/all', protect, authorize('admin'), productController.adminList);
+router.get('/admin/stats', protect, authorize('admin'), productController.stats);
 router.get('/admin/:id', protect, authorize('admin'), productController.getById);
 
 router.get('/', productController.list);

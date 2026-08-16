@@ -12,8 +12,8 @@ export const validate = asyncHandler(async (req, res) => {
 });
 
 export const list = asyncHandler(async (req, res) => {
-  const coupons = await couponService.listCoupons();
-  res.json({ success: true, message: 'Coupons', data: { coupons } });
+  const { items, pagination } = await couponService.adminListCoupons(req.query);
+  res.json({ success: true, message: 'Coupons', data: { coupons: items, pagination } });
 });
 
 export const create = asyncHandler(async (req, res) => {

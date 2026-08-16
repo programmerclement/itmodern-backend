@@ -21,5 +21,6 @@ router.patch(
   validate,
   orderController.updateStatus
 );
+router.patch('/:orderNumber/mark-paid', authorize('admin'), orderController.markPaymentReceived);
 
 export default router;

@@ -6,7 +6,7 @@ const orderItemSchema = new Schema(
   {
     product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
     name: { type: String, required: true },
-    sku: { type: String, required: true },
+    sku: { type: String, default: '' },
     image: { type: String, default: null },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
@@ -66,7 +66,11 @@ const orderSchema = new Schema(
     discountAmount: { type: Number, default: 0 },
     total: { type: Number, required: true },
 
-    paymentMethod: { type: String, enum: ['CASH_ON_DELIVERY', 'MOBILE_MONEY', 'CARD'], required: true },
+    paymentMethod: {
+      type: String,
+      enum: ['CASH_ON_DELIVERY', 'MOBILE_MONEY', 'MANUAL_TRANSFER', 'CARD'],
+      required: true,
+    },
     paymentStatus: { type: String, enum: ['PENDING', 'PAID', 'FAILED'], default: 'PENDING' },
 
     status: { type: String, enum: ORDER_STATUSES, default: 'PENDING' },

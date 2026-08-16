@@ -105,6 +105,7 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     role: this.role,
     status: this.status,
     authProvider: this.authProvider,
+    hasPassword: Boolean(this.passwordHash),
     isEmailVerified: this.isEmailVerified,
     createdAt: this.createdAt,
   };

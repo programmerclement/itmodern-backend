@@ -20,7 +20,10 @@ export const protect = asyncHandler(async (req, res, next) => {
 
   const payload = verifyAccessToken(token);
 
-  const user = await User.findById(payload.sub);
+  // +passwordHash so toSafeJSON() can derive `hasPassword` (e.g. to let a
+  // Google account know it should be "adding" rather than "changing" one).
+  // toSafeJSON never actually includes the hash itself in the response.
+  const user = await User.findById(payload.sub).select('+passwordHash');
   if (!user) {
     throw new ApiError(401, 'Account no longer exists');
   }

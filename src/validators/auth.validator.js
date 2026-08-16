@@ -38,11 +38,15 @@ export const googleAuthValidator = [
 
 export const updateProfileValidator = [
   body('name').optional().trim().notEmpty().withMessage('Full name cannot be empty'),
-  body('phone').optional({ values: 'falsy' }).trim().isMobilePhone('any').withMessage('Invalid phone number'),
+  // Phone is the account's login identifier and stays fixed after signup;
+  // email is the one editable contact field here.
+  body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Enter a valid email address').normalizeEmail(),
 ];
 
 export const changePasswordValidator = [
-  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  // Only required when the account already has a password to verify —
+  // e.g. a Google account adding a password for the first time has none yet.
+  body('currentPassword').optional({ values: 'falsy' }).isString(),
   body('newPassword')
     .isLength({ min: 8 })
     .withMessage('New password must be at least 8 characters long'),

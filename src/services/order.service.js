@@ -251,6 +251,31 @@ export async function adminUpdateStatus(orderNumber, status, note = '') {
   return order;
 }
 
+// For MANUAL_TRANSFER orders (no gateway involved) — an admin confirms the
+// customer actually paid to the configured momo/bank account, mirroring what
+// payment.service.js's processSuccess() does for ITECPAY-confirmed payments.
+export async function adminMarkPaymentReceived(orderNumber, note = '') {
+  const order = await Order.findOne({ orderNumber: orderNumber.toUpperCase() });
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+  if (order.paymentStatus === 'PAID') {
+    throw new ApiError(400, 'This order is already marked as paid');
+  }
+  if (order.status === 'CANCELLED') {
+    throw new ApiError(400, 'This order has been cancelled');
+  }
+
+  order.paymentStatus = 'PAID';
+  if (order.status === 'PENDING') {
+    order.status = 'CONFIRMED';
+    order.statusHistory.push({ status: 'CONFIRMED', note: note || 'Payment received' });
+  }
+  await order.save();
+
+  return order;
+}
+
 const EXPORT_COLUMNS = [
   { key: 'orderNumber', label: 'Order Number' },
   { key: 'date', label: 'Date' },

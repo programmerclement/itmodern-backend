@@ -3,8 +3,10 @@ import { ORDER_STATUSES } from '../models/Order.js';
 
 // Card payment isn't implemented — ITECPAY's card flow isn't documented in
 // what we have to go on, so it stays rejected here rather than accepting an
-// order the payment side can't actually process.
-const SUPPORTED_PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'MOBILE_MONEY'];
+// order the payment side can't actually process. MANUAL_TRANSFER is the
+// admin-toggleable "pay to our momo/bank account" fallback for when ITECPAY
+// is switched off in Settings — no gateway call happens for it.
+const SUPPORTED_PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'MOBILE_MONEY', 'MANUAL_TRANSFER'];
 
 export const checkoutValidator = [
   body('deliveryMethod').isIn(['DELIVERY', 'PICKUP']).withMessage('Invalid delivery method'),

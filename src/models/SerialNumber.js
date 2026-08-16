@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const serialNumberSchema = new Schema(
   {
     product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
-    sku: { type: String, required: true },
+    sku: { type: String, default: '' },
     serialNumber: { type: String, required: true, uppercase: true, trim: true },
     order: { type: Schema.Types.ObjectId, ref: 'Order', default: null },
     user: { type: Schema.Types.ObjectId, ref: 'User', default: null },

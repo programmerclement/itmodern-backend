@@ -94,10 +94,10 @@ export async function googleAuth({ credential }) {
   const { sub: googleId, email, given_name: givenName, family_name: familyName, picture } = payload;
   const name = `${givenName ?? ''} ${familyName ?? ''}`.trim() || 'Google User';
 
-  let user = await User.findOne({ googleId });
+  let user = await User.findOne({ googleId }).select('+passwordHash');
 
   if (!user) {
-    user = await User.findOne({ email });
+    user = await User.findOne({ email }).select('+passwordHash');
     if (user) {
       user.googleId = googleId;
       user.isEmailVerified = true;
@@ -153,7 +153,7 @@ export async function requestOtp({ identifier, purpose }) {
 }
 
 async function consumeOtp(identifier, code, purpose) {
-  const user = await findUserByIdentifier(identifier, '+otpCodeHash +otpExpires +otpPurpose');
+  const user = await findUserByIdentifier(identifier, '+otpCodeHash +otpExpires +otpPurpose +passwordHash');
 
   if (
     !user ||
@@ -217,13 +217,35 @@ export async function verifyEmail({ token }) {
   return user;
 }
 
-export async function updateProfile(userId, { name, phone }) {
-  const user = await User.findById(userId);
+export async function updateProfile(userId, { name, email }) {
+  const user = await User.findById(userId).select('+passwordHash');
 
   if (name !== undefined) user.name = name;
-  if (phone !== undefined) user.phone = phone || undefined;
 
-  await user.save();
+  let emailChanged = false;
+  if (email !== undefined) {
+    const normalizedEmail = email ? email.toLowerCase().trim() : undefined;
+    if (normalizedEmail !== (user.email ?? undefined)) {
+      if (normalizedEmail) {
+        const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+        if (existing) {
+          throw new ApiError(409, 'That email address is already in use');
+        }
+      }
+      user.email = normalizedEmail;
+      user.isEmailVerified = false;
+      emailChanged = true;
+    }
+  }
+
+  if (emailChanged && user.email) {
+    // Saves the user doc and fires off a new verification email — the old
+    // address's verified status no longer applies to the new one.
+    await issueEmailVerification(user);
+  } else {
+    await user.save();
+  }
+
   return user;
 }
 
@@ -240,12 +262,13 @@ export async function resendVerificationEmail(user) {
 export async function changePassword(userId, { currentPassword, newPassword }) {
   const user = await User.findById(userId).select('+passwordHash');
 
-  if (user.authProvider !== 'local' || !user.passwordHash) {
-    throw new ApiError(400, 'This account signs in with Google and has no password to change');
-  }
-
-  if (!(await user.comparePassword(currentPassword))) {
-    throw new ApiError(401, 'Current password is incorrect');
+  // A Google account with no password yet is adding one for the first time —
+  // nothing to verify. Otherwise (local account, or a Google account that
+  // already added a password before) the existing one must be confirmed.
+  if (user.passwordHash) {
+    if (!currentPassword || !(await user.comparePassword(currentPassword))) {
+      throw new ApiError(401, 'Current password is incorrect');
+    }
   }
 
   await user.setPassword(newPassword);

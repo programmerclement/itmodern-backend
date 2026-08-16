@@ -8,7 +8,12 @@ function respondWithSession(res, statusCode, user, message) {
   res.status(statusCode).json({
     success: true,
     message,
-    data: { user: user.toSafeJSON() },
+    // The cookie is the primary session mechanism, but cross-site deployments
+    // (frontend and API on different domains) can have their auth cookie
+    // blocked by browser third-party-cookie protections. The token is also
+    // handed back here so the client can fall back to sending it as an
+    // Authorization: Bearer header, which the auth middleware already accepts.
+    data: { user: user.toSafeJSON(), token },
   });
 }
 

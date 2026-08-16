@@ -28,7 +28,7 @@ export async function adjustStock(productId, { type, quantity, reason }, adminUs
     quantityChange: delta,
     previousStock,
     newStock,
-    reason,
+    reason: reason?.trim() || 'Manual adjustment',
     performedBy: adminUser._id,
   });
 

@@ -15,7 +15,7 @@ const productSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, lowercase: true, trim: true },
-    sku: { type: String, required: true, uppercase: true, trim: true },
+    sku: { type: String, uppercase: true, trim: true, default: undefined },
 
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     brand: { type: Schema.Types.ObjectId, ref: 'Brand', default: null },
@@ -67,7 +67,7 @@ const productSchema = new Schema(
 );
 
 productSchema.index({ slug: 1 }, { unique: true });
-productSchema.index({ sku: 1 }, { unique: true });
+productSchema.index({ sku: 1 }, { unique: true, sparse: true });
 productSchema.index({ category: 1 });
 productSchema.index({ brand: 1 });
 productSchema.index({ price: 1 });

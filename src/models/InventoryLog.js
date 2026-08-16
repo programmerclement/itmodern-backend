@@ -9,7 +9,7 @@ const inventoryLogSchema = new Schema(
     quantityChange: { type: Number, required: true },
     previousStock: { type: Number, required: true },
     newStock: { type: Number, required: true },
-    reason: { type: String, required: true, trim: true },
+    reason: { type: String, trim: true, default: '' },
     performedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true }

@@ -208,6 +208,8 @@ export async function createProduct(data) {
     throw new ApiError(400, 'Invalid category');
   }
 
+  if (!data.sku) delete data.sku;
+
   const slug = await ensureUniqueSlug(Product, data.name);
   return Product.create({ ...data, slug });
 }
@@ -224,6 +226,11 @@ export async function updateProduct(id, data) {
 
   if (data.name && data.name !== product.name) {
     product.slug = await ensureUniqueSlug(Product, data.name, product._id);
+  }
+
+  if ('sku' in data && !data.sku) {
+    product.sku = undefined;
+    delete data.sku;
   }
 
   Object.assign(product, data);

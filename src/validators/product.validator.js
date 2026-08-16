@@ -5,7 +5,7 @@ const GRADES = ['A', 'B', 'C'];
 
 export const createProductValidator = [
   body('name').trim().notEmpty().withMessage('Product name is required'),
-  body('sku').trim().notEmpty().withMessage('SKU is required'),
+  body('sku').optional({ values: 'falsy' }).trim(),
   body('category').isMongoId().withMessage('A valid category is required'),
   body('brand').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid brand'),
   body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
@@ -24,7 +24,7 @@ export const createProductValidator = [
 
 export const updateProductValidator = [
   body('name').optional().trim().notEmpty().withMessage('Product name cannot be empty'),
-  body('sku').optional().trim().notEmpty().withMessage('SKU cannot be empty'),
+  body('sku').optional({ values: 'falsy' }).trim(),
   body('category').optional().isMongoId().withMessage('Invalid category'),
   body('brand').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid brand'),
   body('price').optional().isFloat({ min: 0 }),

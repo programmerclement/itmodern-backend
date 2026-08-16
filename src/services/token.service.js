@@ -18,7 +18,9 @@ export function setAuthCookie(res, token) {
   res.cookie(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    // Render (API) and Netlify (frontend) are different sites, so the cookie
+    // must be sent cross-site — SameSite=None (requires Secure) in production.
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: parseDurationMs(env.jwtExpiresIn),
     path: '/',
   });
@@ -28,7 +30,7 @@ export function clearAuthCookie(res) {
   res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    sameSite: isProduction ? 'none' : 'lax',
     path: '/',
   });
 }

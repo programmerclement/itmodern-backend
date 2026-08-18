@@ -42,3 +42,10 @@ export const exportCsv = asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename=orders-${new Date().toISOString().slice(0, 10)}.csv`);
   res.send(csv);
 });
+
+export const exportPdf = asyncHandler(async (req, res) => {
+  const pdf = await orderService.exportOrdersPdf(req.query);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=orders-${new Date().toISOString().slice(0, 10)}.pdf`);
+  res.send(pdf);
+});

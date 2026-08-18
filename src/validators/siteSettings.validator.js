@@ -8,7 +8,9 @@ export const updateSiteSettingsValidator = [
     .isEmail()
     .withMessage('Enter a valid email address'),
   body('contactAddress').optional({ values: 'falsy' }).trim(),
+  body('businessTin').optional({ values: 'falsy' }).trim(),
   body('onlinePaymentEnabled').optional().isBoolean().withMessage('Invalid value'),
   body('momoAccounts').optional().isArray().withMessage('Invalid mobile money accounts'),
   body('bankAccounts').optional().isArray().withMessage('Invalid bank accounts'),
+  body('whatsappContacts').optional().isArray().withMessage('Invalid WhatsApp contacts'),
 ];

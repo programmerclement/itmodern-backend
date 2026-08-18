@@ -27,3 +27,20 @@ export async function sendOtpSms(phone, code) {
     return { skipped: true, error: error.message };
   }
 }
+
+export async function sendReceiptSms(phone, receipt) {
+  if (!env.pindo.apiKey || !env.pindo.sender) {
+    console.warn(`[sms] Pindo is not configured — skipping receipt SMS to ${phone}`);
+    return { skipped: true };
+  }
+
+  try {
+    return await sendSms({
+      to: toInternational(phone),
+      text: `Thank you for shopping at ITMODERN. Receipt ${receipt.receiptNumber}, total ${receipt.total.toLocaleString()} RWF. Keep this SMS as proof of purchase for warranty claims.`,
+    });
+  } catch (error) {
+    console.error(`[sms] Failed to send receipt SMS to ${phone}:`, error.message);
+    return { skipped: true, error: error.message };
+  }
+}

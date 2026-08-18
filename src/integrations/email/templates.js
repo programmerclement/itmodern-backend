@@ -152,3 +152,16 @@ export function quotationReadyEmail({ name, quotation, quotationUrl }) {
     }),
   };
 }
+
+export function receiptEmail({ name, receipt }) {
+  return {
+    subject: `Your receipt — ${receipt.receiptNumber}`,
+    html: emailLayout({
+      previewText: `Receipt ${receipt.receiptNumber} for your purchase at ITMODERN.`,
+      bodyHtml: `
+        <p>Hi ${name.split(' ')[0]},</p>
+        <p>Thanks for your purchase at ITMODERN. Receipt <strong>${receipt.receiptNumber}</strong> for <strong>${currencyFormatter.format(receipt.total)}</strong> is attached as a PDF — keep it for your records and any warranty claims.</p>
+      `,
+    }),
+  };
+}

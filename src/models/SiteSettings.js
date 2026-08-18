@@ -24,11 +24,21 @@ const bankAccountSchema = new Schema(
   { _id: false }
 );
 
+const whatsappContactSchema = new Schema(
+  {
+    name: { type: String, default: '', trim: true },
+    number: { type: String, default: '', trim: true },
+  },
+  { _id: false }
+);
+
 const siteSettingsSchema = new Schema(
   {
     contactPhone: { type: String, default: '', trim: true },
     contactEmail: { type: String, default: '', trim: true },
     contactAddress: { type: String, default: '', trim: true },
+    // Tax Identification Number — shown on generated sales receipts.
+    businessTin: { type: String, default: '', trim: true },
 
     // When false, checkout hides the ITECPAY-powered mobile money option and
     // shows these pay-to accounts instead — the customer pays directly and an
@@ -36,6 +46,10 @@ const siteSettingsSchema = new Schema(
     onlinePaymentEnabled: { type: Boolean, default: true },
     momoAccounts: { type: [momoAccountSchema], default: [] },
     bankAccounts: { type: [bankAccountSchema], default: [] },
+
+    // One or more staff WhatsApp lines — a customer clicking any "chat with
+    // us" button picks who to message when more than one is configured.
+    whatsappContacts: { type: [whatsappContactSchema], default: [] },
   },
   { timestamps: true }
 );

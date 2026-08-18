@@ -1,3 +1,4 @@
+import PDFDocument from 'pdfkit';
 import Order, { ORDER_STATUSES } from '../models/Order.js';
 import Product from '../models/Product.js';
 import { getActiveCartForCheckout, clearActiveItems } from './cart.service.js';
@@ -292,7 +293,7 @@ const EXPORT_COLUMNS = [
   { key: 'status', label: 'Order Status' },
 ];
 
-export async function exportOrdersCsv({ startDate, endDate, status } = {}) {
+async function getOrdersForExport({ startDate, endDate, status } = {}) {
   const filter = {};
   if (status) filter.status = status;
   if (startDate || endDate) {
@@ -301,7 +302,11 @@ export async function exportOrdersCsv({ startDate, endDate, status } = {}) {
     if (endDate) filter.createdAt.$lte = new Date(endDate);
   }
 
-  const orders = await Order.find(filter).sort({ createdAt: -1 });
+  return Order.find(filter).sort({ createdAt: -1 });
+}
+
+export async function exportOrdersCsv(params = {}) {
+  const orders = await getOrdersForExport(params);
 
   const rows = orders.map((order) => ({
     orderNumber: order.orderNumber,
@@ -320,4 +325,104 @@ export async function exportOrdersCsv({ startDate, endDate, status } = {}) {
   }));
 
   return toCsv(rows, EXPORT_COLUMNS);
+}
+
+const PDF_TABLE_COLUMNS = [
+  { key: 'orderNumber', label: 'Order #', width: 100 },
+  { key: 'date', label: 'Date', width: 55 },
+  { key: 'customerName', label: 'Customer', width: 90 },
+  { key: 'paymentMethod', label: 'Payment', width: 100 },
+  { key: 'status', label: 'Status', width: 70 },
+  { key: 'total', label: 'Total (RWF)', width: 85 },
+];
+
+export async function exportOrdersPdf({ startDate, endDate, status } = {}) {
+  const orders = await getOrdersForExport({ startDate, endDate, status });
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+
+  const doc = new PDFDocument({ size: 'A4', margin: 40 });
+  const chunks = [];
+  doc.on('data', (chunk) => chunks.push(chunk));
+  const buffered = new Promise((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  doc.font('Helvetica-Bold').fontSize(18).fillColor('#0f172a').text('ITMODERN — Orders Report');
+  doc.moveDown(0.3);
+
+  const rangeLabel =
+    startDate || endDate ? `${startDate || 'earliest'} to ${endDate || 'now'}` : 'All time';
+  doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor('#64748b')
+    .text(`Range: ${rangeLabel}${status ? ` · Status: ${status.replace(/_/g, ' ')}` : ''}`)
+    .text(`Generated ${new Date().toLocaleString('en-US')}`);
+  doc.moveDown(1);
+
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .fillColor('#0f172a')
+    .text(`${orders.length} order${orders.length === 1 ? '' : 's'}  ·  Total revenue: RWF ${totalRevenue.toLocaleString()}`);
+  doc.moveDown(1);
+
+  const startX = doc.page.margins.left;
+  const tableWidth = PDF_TABLE_COLUMNS.reduce((sum, col) => sum + col.width, 0);
+  let y = doc.y;
+
+  // pdfkit only auto-ellipsizes text bounded by both `width` AND `height`
+  // (its multi-line-paragraph truncation) — for a single-line table cell
+  // that must never wrap, truncate manually before drawing without a
+  // `width` option at all (passing one always triggers word-wrapping).
+  const fitText = (text, maxWidth) => {
+    const full = String(text ?? '');
+    if (doc.widthOfString(full) <= maxWidth) return full;
+    let clipped = full;
+    while (clipped.length > 0 && doc.widthOfString(`${clipped}…`) > maxWidth) {
+      clipped = clipped.slice(0, -1);
+    }
+    return `${clipped}…`;
+  };
+
+  const drawRow = (row, { isHeader = false } = {}) => {
+    let x = startX;
+    doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(isHeader ? '#0f172a' : '#334155');
+    for (const col of PDF_TABLE_COLUMNS) {
+      doc.text(fitText(row[col.key], col.width - 6), x, y);
+      x += col.width;
+    }
+    y += 18;
+  };
+
+  const drawHeaderRow = () => {
+    drawRow(Object.fromEntries(PDF_TABLE_COLUMNS.map((c) => [c.key, c.label])), { isHeader: true });
+    doc
+      .strokeColor('#e2e8f0')
+      .moveTo(startX, y - 4)
+      .lineTo(startX + tableWidth, y - 4)
+      .stroke();
+  };
+
+  drawHeaderRow();
+
+  for (const order of orders) {
+    if (y > doc.page.height - doc.page.margins.bottom - 20) {
+      doc.addPage();
+      y = doc.page.margins.top;
+      drawHeaderRow();
+    }
+    drawRow({
+      orderNumber: order.orderNumber,
+      date: order.createdAt.toISOString().slice(0, 10),
+      customerName: order.customerName,
+      paymentMethod: order.paymentMethod.replace(/_/g, ' '),
+      status: order.status.replace(/_/g, ' '),
+      total: order.total.toLocaleString(),
+    });
+  }
+
+  doc.end();
+  return buffered;
 }

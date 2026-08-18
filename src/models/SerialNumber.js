@@ -8,6 +8,7 @@ const serialNumberSchema = new Schema(
     sku: { type: String, default: '' },
     serialNumber: { type: String, required: true, uppercase: true, trim: true },
     order: { type: Schema.Types.ObjectId, ref: 'Order', default: null },
+    receipt: { type: Schema.Types.ObjectId, ref: 'Receipt', default: null },
     user: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     purchaseDate: { type: Date, default: null },
     warrantyStart: { type: Date, default: null },

@@ -6,10 +6,11 @@ import {
   orderConfirmationEmail,
   paymentReceivedEmail,
   quotationReadyEmail,
+  receiptEmail,
 } from '../integrations/email/templates.js';
 import { env } from '../config/env.js';
 
-async function send({ to, subject, html }) {
+async function send({ to, subject, html, attachments }) {
   const client = getResendClient();
 
   if (!client || !env.resend.fromEmail) {
@@ -23,6 +24,7 @@ async function send({ to, subject, html }) {
       to,
       subject,
       html,
+      ...(attachments ? { attachments } : {}),
     });
     return result;
   } catch (error) {
@@ -64,4 +66,22 @@ export function sendQuotationReadyEmail(user, quotation) {
   const quotationUrl = `${env.frontendUrl}/account/quotations/${quotation.quotationNumber}`;
   const { subject, html } = quotationReadyEmail({ name: user.name, quotation, quotationUrl });
   return send({ to: user.email, subject, html });
+}
+
+// Explicit admin-triggered action (the "Email receipt" button), so unlike
+// the other sends here this one isn't fire-and-forget — the caller awaits
+// it and reports success/failure back to the admin.
+export function sendReceiptEmail(toEmail, receipt, pdfBuffer) {
+  const { subject, html } = receiptEmail({ name: receipt.customerName, receipt });
+  return send({
+    to: toEmail,
+    subject,
+    html,
+    attachments: [
+      {
+        filename: `receipt-${receipt.receiptNumber}.pdf`,
+        content: pdfBuffer.toString('base64'),
+      },
+    ],
+  });
 }

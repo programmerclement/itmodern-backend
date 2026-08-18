@@ -12,6 +12,7 @@ router.post('/', checkoutValidator, validate, orderController.checkout);
 router.get('/', orderController.listMine);
 router.get('/admin/all', authorize('admin'), orderController.adminList);
 router.get('/admin/export', authorize('admin'), orderController.exportCsv);
+router.get('/admin/export-pdf', authorize('admin'), orderController.exportPdf);
 router.get('/:orderNumber', orderController.getByNumber);
 router.patch('/:orderNumber/cancel', orderController.cancel);
 router.patch(

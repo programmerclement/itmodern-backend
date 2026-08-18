@@ -20,6 +20,7 @@ import quotationRoutes from './quotation.routes.js';
 import couponRoutes from './coupon.routes.js';
 import heroSlideRoutes from './heroSlide.routes.js';
 import siteSettingsRoutes from './siteSettings.routes.js';
+import receiptRoutes from './receipt.routes.js';
 
 const router = Router();
 
@@ -44,5 +45,6 @@ router.use('/quotations', quotationRoutes);
 router.use('/coupons', couponRoutes);
 router.use('/hero-slides', heroSlideRoutes);
 router.use('/settings', siteSettingsRoutes);
+router.use('/receipts', receiptRoutes);
 
 export default router;

@@ -152,6 +152,22 @@ export async function requestOtp({ identifier, purpose }) {
   await issueOtp(user, identifier, purpose);
 }
 
+// For admin-initiated flows (creating a customer/admin account, forcing a
+// password reset) there's no identifier the user actually typed to infer a
+// single channel from — send to every channel on file instead of picking
+// just one, so the code reliably reaches them even if, say, they never
+// check the email address on the account.
+export async function issueOtpAllChannels(user, purpose) {
+  const code = generateOtpCode();
+  user.otpCodeHash = hashToken(code);
+  user.otpExpires = new Date(Date.now() + OTP_TTL_MS);
+  user.otpPurpose = purpose;
+  await user.save();
+
+  if (user.phone) sendOtpSms(user.phone, code).catch(() => {});
+  if (user.email) sendOtpEmail(user, code).catch(() => {});
+}
+
 async function consumeOtp(identifier, code, purpose) {
   const user = await findUserByIdentifier(identifier, '+otpCodeHash +otpExpires +otpPurpose +passwordHash');
 

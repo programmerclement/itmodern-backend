@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import { ApiError } from '../utils/ApiError.js';
-import { requestOtp } from './auth.service.js';
+import { issueOtpAllChannels } from './auth.service.js';
 
 export async function listUsers({ role, status, search, page = 1, limit = 20 } = {}) {
   const filter = {};
@@ -71,7 +71,7 @@ export async function sendPasswordReset(id) {
   if (user.authProvider !== 'local') {
     throw new ApiError(400, 'This account signs in with Google and has no password to reset');
   }
-  await requestOtp({ identifier: user.email || user.phone, purpose: 'reset' });
+  await issueOtpAllChannels(user, 'reset');
 }
 
 export async function adminCreateUser({ name, email, phone, role }) {
@@ -93,7 +93,7 @@ export async function adminCreateUser({ name, email, phone, role }) {
     role: role || 'customer',
   });
 
-  await requestOtp({ identifier: email || phone, purpose: 'reset' });
+  await issueOtpAllChannels(user, 'reset');
 
   return user.toSafeJSON();
 }

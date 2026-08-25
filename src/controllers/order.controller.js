@@ -36,6 +36,11 @@ export const markPaymentReceived = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Payment marked as received', data: { order } });
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await orderService.adminDeleteOrder(req.params.orderNumber);
+  res.json({ success: true, message: 'Order deleted' });
+});
+
 export const exportCsv = asyncHandler(async (req, res) => {
   const csv = await orderService.exportOrdersCsv(req.query);
   res.setHeader('Content-Type', 'text/csv');

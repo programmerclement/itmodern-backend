@@ -23,5 +23,6 @@ router.patch(
   orderController.updateStatus
 );
 router.patch('/:orderNumber/mark-paid', authorize('admin'), orderController.markPaymentReceived);
+router.delete('/:orderNumber', authorize('admin'), orderController.remove);
 
 export default router;

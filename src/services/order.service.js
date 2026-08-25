@@ -277,6 +277,21 @@ export async function adminMarkPaymentReceived(orderNumber, note = '') {
   return order;
 }
 
+// Only cancelled orders can be removed outright — anything still active
+// needs to go through cancellation first so stock/payment side effects are
+// handled properly, and completed orders are kept for the sales record.
+export async function adminDeleteOrder(orderNumber) {
+  const order = await Order.findOne({ orderNumber: orderNumber.toUpperCase() });
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+  if (order.status !== 'CANCELLED') {
+    throw new ApiError(400, 'Only cancelled orders can be deleted');
+  }
+
+  await order.deleteOne();
+}
+
 const EXPORT_COLUMNS = [
   { key: 'orderNumber', label: 'Order Number' },
   { key: 'date', label: 'Date' },

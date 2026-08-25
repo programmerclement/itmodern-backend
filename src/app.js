@@ -20,10 +20,15 @@ if (isProduction) {
   app.set('trust proxy', 1);
 }
 
+// Always allow the production Netlify domain alongside whatever FRONTEND_URL
+// is set to in .env (a custom domain, localhost in dev, etc.) — dedupe in
+// case they're ever the same value.
+const ALLOWED_ORIGINS = [...new Set([env.frontendUrl, 'https://itmodern.netlify.app'])].filter(Boolean);
+
 app.use(helmet());
 app.use(
   cors({
-    origin: env.frontendUrl,
+    origin: ALLOWED_ORIGINS,
     credentials: true,
   })
 );

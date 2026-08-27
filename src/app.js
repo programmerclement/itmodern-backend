@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 
 import { env, isProduction } from './config/env.js';
 import routes from './routes/index.js';
+import sitemapRoutes from './routes/sitemap.routes.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -20,10 +21,17 @@ if (isProduction) {
   app.set('trust proxy', 1);
 }
 
-// Always allow the production Netlify domain alongside whatever FRONTEND_URL
-// is set to in .env (a custom domain, localhost in dev, etc.) — dedupe in
-// case they're ever the same value.
-const ALLOWED_ORIGINS = [...new Set([env.frontendUrl, 'https://itmodern.netlify.app'])].filter(Boolean);
+// Always allow the production domain (custom domain + the default Netlify
+// subdomain, which stays live alongside it) plus whatever FRONTEND_URL is
+// set to in .env (localhost in dev, etc.) — dedupe in case of overlap.
+const ALLOWED_ORIGINS = [
+  ...new Set([
+    env.frontendUrl,
+    'https://itmodernltd.com',
+    'https://www.itmodernltd.com',
+    'https://itmodern.netlify.app',
+  ]),
+].filter(Boolean);
 
 app.use(helmet());
 app.use(
@@ -48,6 +56,10 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api', apiLimiter);
+
+// Outside /api and its rate limiter — crawlers hit this on their own
+// schedule and it shouldn't compete with real API traffic for the limit.
+app.use('/sitemap.xml', sitemapRoutes);
 
 app.use('/api', routes);
 

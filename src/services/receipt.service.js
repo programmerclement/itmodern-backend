@@ -147,7 +147,10 @@ export async function createReceipt(payload, adminUser) {
 }
 
 export async function getReceiptByNumber(receiptNumber) {
-  const receipt = await Receipt.findOne({ receiptNumber: receiptNumber.toUpperCase() });
+  const receipt = await Receipt.findOne({ receiptNumber: receiptNumber.toUpperCase() }).populate(
+    'issuedBy',
+    'name'
+  );
   if (!receipt) {
     throw new ApiError(404, 'Receipt not found');
   }
@@ -169,7 +172,7 @@ export async function adminListReceipts({ search, page = 1, limit = 20 } = {}) {
   const skip = (pageNum - 1) * limitNum;
 
   const [items, total] = await Promise.all([
-    Receipt.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+    Receipt.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum).populate('issuedBy', 'name'),
     Receipt.countDocuments(filter),
   ]);
 
@@ -449,11 +452,19 @@ export async function generateReceiptPdf(receiptNumber) {
       .text('Scan to verify this receipt', qrX, footerY + 74, { width: 70, align: 'center' });
   }
 
+  if (receipt.issuedBy?.name) {
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor('#94a3b8')
+      .text(`Issued by ${receipt.issuedBy.name}`, startX, footerY + 95, { width: tableWidth, align: 'center' });
+  }
+
   doc
     .font('Helvetica-Oblique')
     .fontSize(10)
     .fillColor('#334155')
-    .text('Thank you for doing business with us', startX, footerY + 95, { width: tableWidth, align: 'center' });
+    .text('Thank you for doing business with us', startX, footerY + 109, { width: tableWidth, align: 'center' });
 
   doc.end();
   return buffered;

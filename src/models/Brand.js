@@ -9,11 +9,14 @@ const brandSchema = new Schema(
     logoUrl: { type: String, default: null },
     description: { type: String, default: '', trim: true },
     isActive: { type: Boolean, default: true },
+    // Empty array = universal brand, shown regardless of the selected category.
+    categories: { type: [{ type: Schema.Types.ObjectId, ref: 'Category' }], default: [] },
   },
   { timestamps: true }
 );
 
 brandSchema.index({ slug: 1 }, { unique: true });
+brandSchema.index({ categories: 1 });
 
 const Brand = mongoose.model('Brand', brandSchema);
 

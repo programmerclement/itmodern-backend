@@ -3,19 +3,26 @@ import Product from '../models/Product.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ensureUniqueSlug } from '../utils/slugify.js';
 
-export async function listBrands({ activeOnly = true } = {}) {
-  const query = activeOnly ? { isActive: true } : {};
+function withCategoryFilter(filter, category) {
+  if (!category) return filter;
+  // A brand applies to a category if it lists that category, or lists none (universal brand).
+  return { ...filter, $and: [{ $or: [{ categories: category }, { categories: { $size: 0 } }] }] };
+}
+
+export async function listBrands({ activeOnly = true, category } = {}) {
+  const query = withCategoryFilter(activeOnly ? { isActive: true } : {}, category);
   return Brand.find(query).sort({ name: 1 });
 }
 
-export async function adminListBrands({ search, page = 1, limit = 20 } = {}) {
-  const filter = {};
+export async function adminListBrands({ search, category, page = 1, limit = 20 } = {}) {
+  let filter = {};
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
       { description: { $regex: search, $options: 'i' } },
     ];
   }
+  filter = withCategoryFilter(filter, category);
 
   const pageNum = Math.max(1, Number(page) || 1);
   const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));

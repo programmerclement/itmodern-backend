@@ -5,6 +5,8 @@ export const createBrandValidator = [
   body('description').optional().trim(),
   body('logoUrl').optional({ values: 'falsy' }).isURL().withMessage('Logo URL must be valid'),
   body('isActive').optional().isBoolean(),
+  body('categories').optional().isArray().withMessage('Categories must be a list'),
+  body('categories.*').optional().isMongoId().withMessage('Invalid category id'),
 ];
 
 export const updateBrandValidator = [
@@ -12,4 +14,6 @@ export const updateBrandValidator = [
   body('description').optional().trim(),
   body('logoUrl').optional({ values: 'falsy' }).isURL().withMessage('Logo URL must be valid'),
   body('isActive').optional().isBoolean(),
+  body('categories').optional().isArray().withMessage('Categories must be a list'),
+  body('categories.*').optional().isMongoId().withMessage('Invalid category id'),
 ];

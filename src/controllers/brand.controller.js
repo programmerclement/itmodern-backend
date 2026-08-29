@@ -2,7 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import * as brandService from '../services/brand.service.js';
 
 export const list = asyncHandler(async (req, res) => {
-  const brands = await brandService.listBrands({ activeOnly: true });
+  const brands = await brandService.listBrands({ activeOnly: true, category: req.query.category });
   res.json({ success: true, message: 'Brands', data: { brands } });
 });
 

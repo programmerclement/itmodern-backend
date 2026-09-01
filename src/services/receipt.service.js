@@ -9,8 +9,9 @@ import SiteSettings from '../models/SiteSettings.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateSequentialNumber } from '../utils/sequentialNumber.js';
 import { env } from '../config/env.js';
-import { sendReceiptSms } from './sms.service.js';
+import { sendReceiptSms, sendCreditReminderSms } from './sms.service.js';
 import { sendReceiptEmail } from './email.service.js';
+import { adjustStock } from './inventory.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
@@ -44,6 +45,9 @@ export async function createReceipt(payload, adminUser) {
     paymentMethod,
     warrantyNote = '',
     notes = '',
+    saleType = 'FULL',
+    amountPaid: rawAmountPaid,
+    dueDate,
   } = payload;
 
   if (!items?.length) {
@@ -73,16 +77,20 @@ export async function createReceipt(payload, adminUser) {
     resolved.push({ ...item, product });
   }
 
+  const receiptNumber = await generateSequentialNumber(Receipt, 'receiptNumber', 'RCT');
+
+  // Routed through inventory.service so every receipt sale leaves the same
+  // InventoryLog audit trail as a manual stock adjustment.
   for (const item of resolved) {
     if (item.product) {
-      await Product.updateOne(
-        { _id: item.product._id },
-        { $inc: { stockQuantity: -item.quantity, salesCount: item.quantity } }
+      await adjustStock(
+        item.product._id,
+        { type: 'OUT', quantity: item.quantity, reason: `Receipt ${receiptNumber} — sold to ${customerName}` },
+        adminUser
       );
+      await Product.updateOne({ _id: item.product._id }, { $inc: { salesCount: item.quantity } });
     }
   }
-
-  const receiptNumber = await generateSequentialNumber(Receipt, 'receiptNumber', 'RCT');
 
   const builtItems = resolved.map((item) => ({
     product: item.product?._id ?? null,
@@ -99,6 +107,10 @@ export async function createReceipt(payload, adminUser) {
   const subtotal = builtItems.reduce((sum, item) => sum + item.amount, 0);
   const total = Math.max(0, subtotal - Number(discount || 0));
 
+  const isCredit = saleType === 'CREDIT';
+  const amountPaid = isCredit ? Math.min(Math.max(0, Number(rawAmountPaid) || 0), total) : total;
+  const balanceDue = Math.max(0, total - amountPaid);
+
   const receipt = await Receipt.create({
     receiptNumber,
     customerName: customerName.trim(),
@@ -111,6 +123,10 @@ export async function createReceipt(payload, adminUser) {
     paymentMethod,
     warrantyNote: warrantyNote.trim(),
     notes: notes.trim(),
+    saleType: isCredit ? 'CREDIT' : 'FULL',
+    amountPaid,
+    balanceDue,
+    dueDate: isCredit && dueDate ? new Date(dueDate) : null,
     issuedBy: adminUser._id,
   });
 
@@ -157,7 +173,7 @@ export async function getReceiptByNumber(receiptNumber) {
   return receipt;
 }
 
-export async function adminListReceipts({ search, page = 1, limit = 20 } = {}) {
+export async function adminListReceipts({ search, paymentMethod, issuedBy, saleType, page = 1, limit = 20 } = {}) {
   const filter = {};
   if (search) {
     filter.$or = [
@@ -166,6 +182,9 @@ export async function adminListReceipts({ search, page = 1, limit = 20 } = {}) {
       { customerPhone: { $regex: search, $options: 'i' } },
     ];
   }
+  if (paymentMethod) filter.paymentMethod = paymentMethod;
+  if (issuedBy) filter.issuedBy = issuedBy;
+  if (saleType) filter.saleType = saleType;
 
   const pageNum = Math.max(1, Number(page) || 1);
   const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
@@ -180,6 +199,103 @@ export async function adminListReceipts({ search, page = 1, limit = 20 } = {}) {
     items,
     pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
   };
+}
+
+export async function getReceiptStats() {
+  const [totals, creditAgg] = await Promise.all([
+    Receipt.aggregate([
+      { $group: { _id: null, count: { $sum: 1 }, revenue: { $sum: '$total' }, collected: { $sum: '$amountPaid' } } },
+    ]),
+    Receipt.aggregate([
+      { $match: { saleType: 'CREDIT', balanceDue: { $gt: 0 } } },
+      { $group: { _id: null, count: { $sum: 1 }, outstanding: { $sum: '$balanceDue' } } },
+    ]),
+  ]);
+
+  return {
+    totalReceipts: totals[0]?.count ?? 0,
+    totalRevenue: totals[0]?.revenue ?? 0,
+    totalCollected: totals[0]?.collected ?? 0,
+    creditOutstandingCount: creditAgg[0]?.count ?? 0,
+    creditOutstandingTotal: creditAgg[0]?.outstanding ?? 0,
+  };
+}
+
+// status: 'outstanding' | 'settled' | undefined (all credit sales)
+export async function adminListCredits({ status, search, page = 1, limit = 20 } = {}) {
+  const filter = { saleType: 'CREDIT' };
+  if (status === 'outstanding') filter.balanceDue = { $gt: 0 };
+  else if (status === 'settled') filter.balanceDue = { $lte: 0 };
+  if (search) {
+    filter.$or = [
+      { receiptNumber: { $regex: search, $options: 'i' } },
+      { customerName: { $regex: search, $options: 'i' } },
+      { customerPhone: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [items, total] = await Promise.all([
+    Receipt.find(filter)
+      .sort({ balanceDue: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate('issuedBy', 'name'),
+    Receipt.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+  };
+}
+
+export async function recordCreditPayment(receiptNumber, amount) {
+  const receipt = await Receipt.findOne({ receiptNumber: receiptNumber.toUpperCase() });
+  if (!receipt) {
+    throw new ApiError(404, 'Receipt not found');
+  }
+  if (receipt.saleType !== 'CREDIT') {
+    throw new ApiError(400, 'This receipt is not a credit sale');
+  }
+
+  const amt = Number(amount);
+  if (!amt || amt <= 0) {
+    throw new ApiError(400, 'Enter a valid payment amount');
+  }
+  if (amt > receipt.balanceDue) {
+    throw new ApiError(400, `Amount exceeds the outstanding balance of ${receipt.balanceDue.toLocaleString()} RWF`);
+  }
+
+  receipt.amountPaid += amt;
+  receipt.balanceDue -= amt;
+  await receipt.save();
+  return receipt;
+}
+
+export async function sendCreditReminder(receiptNumber) {
+  const receipt = await Receipt.findOne({ receiptNumber: receiptNumber.toUpperCase() });
+  if (!receipt) {
+    throw new ApiError(404, 'Receipt not found');
+  }
+  if (receipt.saleType !== 'CREDIT' || receipt.balanceDue <= 0) {
+    throw new ApiError(400, 'This receipt has no outstanding balance');
+  }
+  if (!receipt.customerPhone) {
+    throw new ApiError(400, 'No phone number on file for this customer');
+  }
+
+  const result = await sendCreditReminderSms(receipt.customerPhone, receipt);
+  if (result?.skipped) {
+    throw new ApiError(502, result.error || 'SMS could not be sent — check the SMS configuration');
+  }
+
+  receipt.lastReminderSentAt = new Date();
+  await receipt.save();
+  return receipt;
 }
 
 function receiptVerifyUrl(receiptNumber) {
@@ -393,11 +509,11 @@ export async function generateReceiptPdf(receiptNumber) {
 
   // --- Totals (right-aligned box) ---
   const totalsX = startX + tableWidth - 200;
-  const drawTotalLine = (label, value, { bold = false } = {}) => {
+  const drawTotalLine = (label, value, { bold = false, color } = {}) => {
     doc
       .font(bold ? 'Helvetica-Bold' : 'Helvetica')
       .fontSize(bold ? 11 : 9)
-      .fillColor(bold ? '#0f172a' : '#334155')
+      .fillColor(color ?? (bold ? '#0f172a' : '#334155'))
       .text(label, totalsX, y, { width: 110 })
       .text(`${value.toLocaleString()} RWF`, totalsX + 110, y, { width: 90, align: 'right' });
     y += bold ? 18 : 15;
@@ -406,6 +522,10 @@ export async function generateReceiptPdf(receiptNumber) {
   drawTotalLine('Subtotal', receipt.subtotal);
   if (receipt.discount > 0) drawTotalLine('Discount', -receipt.discount);
   drawTotalLine('Total', receipt.total, { bold: true });
+  if (receipt.saleType === 'CREDIT') {
+    drawTotalLine('Amount paid', receipt.amountPaid);
+    drawTotalLine('Balance due', receipt.balanceDue, { bold: true, color: '#b91c1c' });
+  }
   y += 8;
 
   doc

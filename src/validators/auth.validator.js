@@ -38,9 +38,10 @@ export const googleAuthValidator = [
 
 export const updateProfileValidator = [
   body('name').optional().trim().notEmpty().withMessage('Full name cannot be empty'),
-  // Phone is the account's login identifier and stays fixed after signup;
-  // email is the one editable contact field here.
   body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Enter a valid email address').normalizeEmail(),
+  // Phone can only be set once (see auth.service.js#updateProfile) — this just
+  // validates the format when a value is sent, e.g. by a Google account adding one.
+  body('phone').optional({ values: 'falsy' }).trim().isMobilePhone('any').withMessage('Enter a valid phone number'),
 ];
 
 export const changePasswordValidator = [

@@ -233,10 +233,24 @@ export async function verifyEmail({ token }) {
   return user;
 }
 
-export async function updateProfile(userId, { name, email }) {
+export async function updateProfile(userId, { name, email, phone }) {
   const user = await User.findById(userId).select('+passwordHash');
 
   if (name !== undefined) user.name = name;
+
+  // Phone is the account's login identifier and stays fixed once set, but
+  // Google sign-ups start with no phone at all (Google's ID token doesn't
+  // provide one) — let those accounts add one the first time.
+  if (phone !== undefined && phone !== (user.phone ?? '')) {
+    if (user.phone) {
+      throw new ApiError(400, 'Phone number cannot be changed once set');
+    }
+    const existingPhone = await User.findOne({ phone, _id: { $ne: user._id } });
+    if (existingPhone) {
+      throw new ApiError(409, 'That phone number is already in use');
+    }
+    user.phone = phone;
+  }
 
   let emailChanged = false;
   if (email !== undefined) {

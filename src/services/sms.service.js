@@ -28,6 +28,23 @@ export async function sendOtpSms(phone, code) {
   }
 }
 
+export async function sendCreditReminderSms(phone, receipt) {
+  if (!env.pindo.apiKey || !env.pindo.sender) {
+    console.warn(`[sms] Pindo is not configured — skipping credit reminder SMS to ${phone}`);
+    return { skipped: true };
+  }
+
+  try {
+    return await sendSms({
+      to: toInternational(phone),
+      text: `ITMODERN reminder: receipt ${receipt.receiptNumber} has an outstanding balance of ${receipt.balanceDue.toLocaleString()} RWF. Please settle at your earliest convenience. Thank you.`,
+    });
+  } catch (error) {
+    console.error(`[sms] Failed to send credit reminder to ${phone}:`, error.message);
+    return { skipped: true, error: error.message };
+  }
+}
+
 export async function sendReceiptSms(phone, receipt) {
   if (!env.pindo.apiKey || !env.pindo.sender) {
     console.warn(`[sms] Pindo is not configured — skipping receipt SMS to ${phone}`);

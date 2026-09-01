@@ -14,8 +14,15 @@ export const createReceiptValidator = [
   body('discount').optional({ values: 'falsy' }).isFloat({ min: 0 }),
   body('warrantyNote').optional({ values: 'falsy' }).trim(),
   body('notes').optional({ values: 'falsy' }).trim(),
+  body('saleType').optional().isIn(['FULL', 'CREDIT']).withMessage('Invalid sale type'),
+  body('amountPaid').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+  body('dueDate').optional({ values: 'falsy' }).isISO8601().withMessage('Invalid due date'),
 ];
 
 export const emailReceiptValidator = [
   body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Enter a valid email address'),
+];
+
+export const recordCreditPaymentValidator = [
+  body('amount').isFloat({ gt: 0 }).withMessage('Enter a valid payment amount'),
 ];

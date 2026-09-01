@@ -43,6 +43,16 @@ const receiptSchema = new Schema(
     warrantyNote: { type: String, default: '', trim: true },
     notes: { type: String, default: '', trim: true },
 
+    // FULL sales pay the entire total up front (amountPaid === total,
+    // balanceDue 0). CREDIT sales let the customer take the goods against a
+    // partial (or zero) payment now, tracked here and settled later via
+    // recordCreditPayment — see receipt.service.js.
+    saleType: { type: String, enum: ['FULL', 'CREDIT'], default: 'FULL' },
+    amountPaid: { type: Number, default: 0, min: 0 },
+    balanceDue: { type: Number, default: 0, min: 0 },
+    dueDate: { type: Date, default: null },
+    lastReminderSentAt: { type: Date, default: null },
+
     issuedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     smsSentAt: { type: Date, default: null },
     emailSentAt: { type: Date, default: null },
@@ -53,6 +63,7 @@ const receiptSchema = new Schema(
 receiptSchema.index({ receiptNumber: 1 }, { unique: true });
 receiptSchema.index({ customerPhone: 1 });
 receiptSchema.index({ createdAt: -1 });
+receiptSchema.index({ saleType: 1, balanceDue: -1 });
 
 const Receipt = mongoose.model('Receipt', receiptSchema);
 

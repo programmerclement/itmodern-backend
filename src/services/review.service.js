@@ -2,6 +2,7 @@ import Review from '../models/Review.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import { createNotification } from './notification.service.js';
 import { ApiError } from '../utils/ApiError.js';
 
 async function findEligibleOrder(userId, productId) {
@@ -55,6 +56,19 @@ export async function createReview(userId, { productId, rating, title, comment, 
     verifiedPurchase: true,
     status: 'pending',
   });
+
+  Product.findById(productId)
+    .select('name')
+    .then((product) =>
+      createNotification({
+        type: 'REVIEW_PENDING',
+        title: 'New review awaiting moderation',
+        message: `${rating}★ review on "${product?.name ?? 'a product'}"`,
+        link: '/admin/reviews',
+        meta: { reviewId: review._id.toString() },
+      })
+    )
+    .catch(() => {});
 
   return review;
 }
@@ -129,6 +143,21 @@ export async function moderateReview(id, status) {
   review.status = status;
   await review.save();
   await recalculateProductRating(review.product);
+
+  if (status === 'approved' || status === 'rejected') {
+    Product.findById(review.product)
+      .select('name slug')
+      .then((product) =>
+        createNotification({
+          type: status === 'approved' ? 'REVIEW_APPROVED' : 'REVIEW_REJECTED',
+          title: status === 'approved' ? 'Your review was approved' : 'Your review was not approved',
+          message: product ? `Your review of "${product.name}"` : undefined,
+          link: product ? `/products/${product.slug}` : null,
+          userId: review.user,
+        })
+      )
+      .catch(() => {});
+  }
 
   return review;
 }

@@ -2,6 +2,7 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import Payment from '../models/Payment.js';
+import Receipt from '../models/Receipt.js';
 
 export async function getDashboardSummary() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -15,6 +16,9 @@ export async function getDashboardSummary() {
     outOfStockCount,
     pendingOrders,
     pendingPayments,
+    totalReceipts,
+    receiptRevenueByMethodAgg,
+    creditOutstandingAgg,
     salesOverTime,
     bestSelling,
     revenueByCategory,
@@ -34,6 +38,12 @@ export async function getDashboardSummary() {
     Product.countDocuments({ status: 'published', stockQuantity: 0 }),
     Order.countDocuments({ status: 'PENDING' }),
     Payment.countDocuments({ status: 'PENDING' }),
+    Receipt.countDocuments(),
+    Receipt.aggregate([{ $group: { _id: '$paymentMethod', revenue: { $sum: '$total' } } }]),
+    Receipt.aggregate([
+      { $match: { saleType: 'CREDIT', balanceDue: { $gt: 0 } } },
+      { $group: { _id: null, outstanding: { $sum: '$balanceDue' } } },
+    ]),
     Order.aggregate([
       { $match: { paymentStatus: 'PAID', createdAt: { $gte: thirtyDaysAgo } } },
       {
@@ -76,6 +86,11 @@ export async function getDashboardSummary() {
     ]),
   ]);
 
+  const receiptRevenueByMethod = Object.fromEntries(
+    receiptRevenueByMethodAgg.map((entry) => [entry._id, entry.revenue])
+  );
+  const totalReceiptRevenue = receiptRevenueByMethodAgg.reduce((sum, entry) => sum + entry.revenue, 0);
+
   return {
     totalRevenue: revenueAgg[0]?.total ?? 0,
     totalOrders,
@@ -85,6 +100,10 @@ export async function getDashboardSummary() {
     outOfStockCount,
     pendingOrders,
     pendingPayments,
+    totalReceipts,
+    totalReceiptRevenue,
+    receiptRevenueByMethod,
+    creditOutstandingTotal: creditOutstandingAgg[0]?.outstanding ?? 0,
     salesOverTime,
     bestSelling,
     revenueByCategory,

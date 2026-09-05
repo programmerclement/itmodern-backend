@@ -5,6 +5,7 @@ import { getActiveCartForCheckout, clearActiveItems } from './cart.service.js';
 import { getOwnedAddressOrThrow } from './address.service.js';
 import { sendOrderConfirmationEmail } from './email.service.js';
 import { validateCoupon, incrementUsage } from './coupon.service.js';
+import { createNotification } from './notification.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateSequentialNumber } from '../utils/sequentialNumber.js';
 import { toCsv } from '../utils/csv.js';
@@ -140,6 +141,14 @@ export async function createOrderFromCart(user, payload) {
 
   sendOrderConfirmationEmail(user, order).catch(() => {});
 
+  createNotification({
+    type: 'ORDER_PLACED',
+    title: `New order ${order.orderNumber}`,
+    message: `${customerName} placed an order for ${total.toLocaleString()} RWF`,
+    link: `/admin/orders/${order.orderNumber}`,
+    meta: { orderId: order._id.toString() },
+  }).catch(() => {});
+
   return order;
 }
 
@@ -248,6 +257,14 @@ export async function adminUpdateStatus(orderNumber, status, note = '') {
   order.status = status;
   order.statusHistory.push({ status, note });
   await order.save();
+
+  createNotification({
+    type: 'ORDER_STATUS_UPDATED',
+    title: `Order ${order.orderNumber} ${status.toLowerCase()}`,
+    message: note || `Your order status is now ${status.toLowerCase()}`,
+    link: `/account/orders/${order.orderNumber}`,
+    userId: order.user,
+  }).catch(() => {});
 
   return order;
 }

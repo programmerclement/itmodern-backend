@@ -7,6 +7,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { env } from '../config/env.js';
 import * as itecpay from '../integrations/payments/itecpayClient.js';
 import { sendPaymentReceivedEmail } from './email.service.js';
+import { createNotification } from './notification.service.js';
 
 const PAYMENT_TIMEOUT_MS = 15 * 60 * 1000;
 const VALID_NETWORKS = ['MTN', 'AIRTEL', 'SPENN'];
@@ -50,6 +51,22 @@ export async function processSuccess(payment) {
   if (user) {
     sendPaymentReceivedEmail(user, order, payment).catch(() => {});
   }
+
+  createNotification({
+    type: 'PAYMENT_CONFIRMED',
+    title: `Payment confirmed for order ${order.orderNumber}`,
+    message: `We received your payment of ${payment.amount.toLocaleString()} RWF`,
+    link: `/account/orders/${order.orderNumber}`,
+    userId: payment.user,
+  }).catch(() => {});
+
+  createNotification({
+    type: 'PAYMENT_RECEIVED',
+    title: `Payment received for ${order.orderNumber}`,
+    message: `${payment.amount.toLocaleString()} RWF via ${payment.network}`,
+    link: `/admin/orders/${order.orderNumber}`,
+    meta: { paymentId: payment._id.toString() },
+  }).catch(() => {});
 }
 
 async function failPayment(payment, message) {
@@ -62,6 +79,14 @@ async function failPayment(payment, message) {
     order.paymentStatus = 'FAILED';
     await order.save();
   }
+
+  createNotification({
+    type: 'PAYMENT_FAILED',
+    title: `Payment failed${order ? ` for ${order.orderNumber}` : ''}`,
+    message: message || 'A payment attempt failed',
+    link: order ? `/admin/orders/${order.orderNumber}` : null,
+    meta: { paymentId: payment._id.toString() },
+  }).catch(() => {});
 }
 
 async function expirePayment(payment, message) {

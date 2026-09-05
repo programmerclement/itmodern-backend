@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import { reserveStock } from './order.service.js';
 import { getOwnedAddressOrThrow } from './address.service.js';
 import { sendQuotationReadyEmail } from './email.service.js';
+import { createNotification } from './notification.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateSequentialNumber } from '../utils/sequentialNumber.js';
 
@@ -46,7 +47,7 @@ export async function requestQuotation(user, { items, companyName, contactPerson
 
   const quotationNumber = await generateQuotationNumber();
 
-  return Quotation.create({
+  const quotation = await Quotation.create({
     quotationNumber,
     customer: user._id,
     companyName,
@@ -59,6 +60,16 @@ export async function requestQuotation(user, { items, companyName, contactPerson
     total: subtotal,
     status: 'REQUESTED',
   });
+
+  createNotification({
+    type: 'QUOTATION_REQUESTED',
+    title: `New quotation request ${quotationNumber}`,
+    message: `${companyName || contactPerson} requested a quotation for ${quotationItems.length} item(s)`,
+    link: `/admin/quotations/${quotationNumber}`,
+    meta: { quotationId: quotation._id.toString() },
+  }).catch(() => {});
+
+  return quotation;
 }
 
 export async function adminCreateQuotation(admin, payload) {
@@ -105,6 +116,13 @@ export async function adminCreateQuotation(admin, payload) {
   });
 
   sendQuotationReadyEmail(customer, quotation).catch(() => {});
+  createNotification({
+    type: 'QUOTATION_READY',
+    title: `Your quotation ${quotationNumber} is ready`,
+    message: `Total: ${total.toLocaleString()} RWF`,
+    link: `/account/quotations/${quotationNumber}`,
+    userId: customer._id,
+  }).catch(() => {});
 
   return quotation;
 }
@@ -151,7 +169,16 @@ export async function adminUpdateQuotation(id, payload) {
   await quotation.save();
 
   const customer = await User.findById(quotation.customer);
-  if (customer) sendQuotationReadyEmail(customer, quotation).catch(() => {});
+  if (customer) {
+    sendQuotationReadyEmail(customer, quotation).catch(() => {});
+    createNotification({
+      type: 'QUOTATION_READY',
+      title: `Your quotation ${quotation.quotationNumber} was updated`,
+      message: `Total: ${quotation.total.toLocaleString()} RWF`,
+      link: `/account/quotations/${quotation.quotationNumber}`,
+      userId: customer._id,
+    }).catch(() => {});
+  }
 
   return quotation;
 }
@@ -293,6 +320,14 @@ export async function acceptQuotation(quotationNumber, user, payload) {
   quotation.status = 'ACCEPTED';
   quotation.order = order._id;
   await quotation.save();
+
+  createNotification({
+    type: 'ORDER_PLACED',
+    title: `New order ${order.orderNumber}`,
+    message: `${customerName} accepted quotation ${quotation.quotationNumber} — order for ${order.total.toLocaleString()} RWF`,
+    link: `/admin/orders/${order.orderNumber}`,
+    meta: { orderId: order._id.toString() },
+  }).catch(() => {});
 
   return order;
 }

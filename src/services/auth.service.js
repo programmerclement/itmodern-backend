@@ -5,6 +5,7 @@ import { generateSecureToken, hashToken } from '../utils/secureToken.js';
 import { env } from '../config/env.js';
 import { sendVerificationEmail, sendWelcomeEmail, sendOtpEmail } from './email.service.js';
 import { sendOtpSms } from './sms.service.js';
+import { createNotification } from './notification.service.js';
 
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -56,6 +57,14 @@ export async function register({ name, email, phone, password }) {
   if (email) {
     await issueEmailVerification(user);
   }
+
+  createNotification({
+    type: 'CUSTOMER_REGISTERED',
+    title: 'New customer registered',
+    message: `${name} signed up (${email || phone})`,
+    link: `/admin/customers/${user._id}`,
+    meta: { userId: user._id.toString() },
+  }).catch(() => {});
 
   return user;
 }
@@ -118,8 +127,19 @@ export async function googleAuth({ credential }) {
     throw new ApiError(403, 'Account is suspended');
   }
 
+  const isNewUser = user.isNew;
   user.lastLoginAt = new Date();
   await user.save();
+
+  if (isNewUser) {
+    createNotification({
+      type: 'CUSTOMER_REGISTERED',
+      title: 'New customer registered',
+      message: `${user.name} signed up with Google (${user.email})`,
+      link: `/admin/customers/${user._id}`,
+      meta: { userId: user._id.toString() },
+    }).catch(() => {});
+  }
 
   return user;
 }

@@ -21,6 +21,7 @@ import couponRoutes from './coupon.routes.js';
 import heroSlideRoutes from './heroSlide.routes.js';
 import siteSettingsRoutes from './siteSettings.routes.js';
 import receiptRoutes from './receipt.routes.js';
+import notificationRoutes from './notification.routes.js';
 
 const router = Router();
 
@@ -46,5 +47,6 @@ router.use('/coupons', couponRoutes);
 router.use('/hero-slides', heroSlideRoutes);
 router.use('/settings', siteSettingsRoutes);
 router.use('/receipts', receiptRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;
